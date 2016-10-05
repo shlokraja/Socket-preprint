@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+
+<head>
+  <title>Preprint Listener</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font: 13px Helvetica, Arial;
+    }
+    
+    form {
+      background: #000;
+      padding: 3px;
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+    }
+    
+    form input {
+      border: 0;
+      padding: 10px;
+      width: 100%;
+      margin-right: .5%;
+    }
+    
+    form button {
+      width: 9%;
+      background: rgb(130, 224, 255);
+      border: none;
+      padding: 10px;
+    }
+    
+    #messages {
+      list-style-type: none;
+      margin: 0;
+      padding: 0;
+    }
+    
+    #messages li {
+      padding: 5px 10px;
+    }
+    
+    #messages li:nth-child(odd) {
+      background: #eee;
+    }
+  </style>
+</head>
+
+<body>
+  <ul id="messages"></ul>
+  <form action="">
+    <input id="scanned_code" />
+  </form>
+  <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+  <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+  <script>
+      $(document).ready(function(){
+        $('#scanned_code').focus()
+      })
+       $('#scanned_code').focusout(function() {
+        $('#scanned_code').focus()
+      })
+
+      var socket = io();
+      $('form').submit(function(){
+        socket.emit('data-matrix', $('#scanned_code').val());
+        $('#scanned_code').val('');
+        return false;
+      });
+      socket.on('data-matrix', function(msg){
+        $('#messages').append($('<li>').text(msg));
+      });
+    </script>
+</body>
+
+</html>
