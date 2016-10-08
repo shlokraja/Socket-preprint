@@ -216,7 +216,15 @@ router.post('/submit_scanned_stock', function (req, res, next)
 								   var barcode=barcode_extra.toString().substring(0, 9);
                                    // console.log("***************************comparision_reply" + JSON.stringify(comparision_reply));
                                    console.log("***************************Requested barcode" + barcode);
-                                   var old_barcode = _.findWhere(JSON.parse(comparision_reply), { data_matrix_code: barcode }).barcode;
+                                   var old_barcode = _.findWhere(JSON.parse(comparision_reply), { data_matrix_code: barcode });
+								   
+								   if (old_barcode!=undefined){
+								   old_barcode=old_barcode.barcode;
+								   }						
+								   else{
+								   continue;
+								   }	
+								   
                                    console.log("***************** old barcode for " + barcode + "  is " + old_barcode);
                                    // Verify if the barcode is not jumbled up
                                    if (!verifyBarcode(old_barcode))

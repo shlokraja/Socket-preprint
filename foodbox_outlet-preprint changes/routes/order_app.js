@@ -1188,7 +1188,7 @@ function getOldestBarcode(item_id, item_details) {
 			//barcode = item_details[i]["barcode"];
 
 
-			barcode = item_details[i]["slot_ids"][i].data_matrix;
+			barcode = item_details[i]["slot_ids"][0].data_matrix;
 		}
 	}
 	return barcode;
@@ -1198,8 +1198,9 @@ function updateStockCount(stock_count, barcode) {
 	for (var item_id in stock_count) {
 		var item = stock_count[item_id]["item_details"];
 		for (var i = 0; i < item.length; i++) {
-			if (item[i]["slot_ids"][i].data_matrix == barcode) {
+			if (item[i]["slot_ids"][0].data_matrix == barcode) {
 				stock_count[item_id]["item_details"][i]["count"]--;
+				stock_count[item_id]["item_details"][i]["slot_ids"].splice(i,1);
 				// If there are no more items left, delete the node
 				if (!stock_count[item_id]["item_details"][i]["count"]) {
 					stock_count[item_id]["item_details"].splice(i, 1);
