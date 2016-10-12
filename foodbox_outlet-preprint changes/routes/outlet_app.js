@@ -448,6 +448,16 @@ router.post('/start_of_day_signal', function (req, res, next)
         debug("Deleted the zero sales count node");
     });
 
+   // deleting the barcode_comparision node
+    redisClient.del(helper.barcode_comparision, function (del_err, del_reply)
+    {
+        if (del_err)
+        {
+            console.error("error while deleting barcode_comparision in redis- {}".format(b_err));
+            return;
+        }
+    });
+
     // Resetting the bill_no to 1 because its at the end of the day
     redisClient.set(helper.bill_no_node, 1, function (b_err, b_reply)
     {
@@ -565,6 +575,15 @@ router.post('/end_of_day_signal', function (req, res, next)
         }
     });
 
+   // deleting the barcode_comparision node
+    redisClient.del(helper.barcode_comparision, function (del_err, del_reply)
+    {
+        if (del_err)
+        {
+            console.error("error while deleting barcode_comparision in redis- {}".format(b_err));
+            return;
+        }
+    });
 
     // Resetting the bill_no to 1 because its at the end of the day
     redisClient.set(helper.bill_no_node, 1, function (b_err, b_reply)
