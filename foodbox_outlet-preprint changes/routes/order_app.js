@@ -193,6 +193,11 @@ router.post('/place_order', function (req, res, next) {
 								var item_queue = [];
 								for (var item_id in order_details) {
 									for (var j = 0; j < order_details[item_id]["count"]; j++) {
+
+										if (stock_count[item_id] == undefined) {
+											continue;
+										}
+
 										var barcode = getOldestBarcode(item_id, stock_count[item_id]["item_details"]);
 										var old_barcode = get_Barcode(item_id, stock_count[item_id]["item_details"])
 										// XXX: This case should not come
@@ -325,6 +330,7 @@ router.post('/place_order', function (req, res, next) {
 								if (test_mode) {
 									debug("Going into test mode");
 									// pushing the item to the queue
+									console.log("pushing the item to the queue" + JSON.stringify(item_queue))
 									item_queue.map(function (item_val) {
 										redisClient.rpush(helper.dispenser_queue_node, JSON.stringify(item_val),
 											function (lp_err, lp_reply) {
@@ -333,6 +339,7 @@ router.post('/place_order', function (req, res, next) {
 
 													return;
 												}
+												console.log("************************lp_reply" + lp_reply)
 											});
 									});
 									// Prepare the bill data and pass it on to the print function
@@ -574,8 +581,13 @@ router.post('/fulfill_replacement/:id', function (req, res, next) {
 			var multi = redisClient.multi();
 			for (var item_id in order_details) {
 				for (var j = 0; j < order_details[item_id]["count"]; j++) {
+
+					if (stock_count[item_id] == undefined) {
+						continue;
+					}
+
 					var barcode = getOldestBarcode(item_id, stock_count[item_id]["item_details"]);
-					var old_barcode=get_Barcode(item_id, stock_count[item_id]["item_details"])
+					var old_barcode = get_Barcode(item_id, stock_count[item_id]["item_details"])
 					if (barcode == null) {
 						// most probably barcodes have expired or spoiled
 						continue;

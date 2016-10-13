@@ -25,6 +25,18 @@ redisClient.on('error', function (msg) {
 // to the order app.
 router.post('/test_mode', function (req, res, next) {
     var flag = req.body.flag;
+    console.log('**************************** flag' + flag)
+    if (!flag) {
+        console.log('**************************** remove test comparision executed')
+        // deleting the barcode_comparision node
+        redisClient.del(helper.barcode_comparision, function (del_err, del_reply) {
+            if (del_err) {
+                console.error("error while deleting barcode_comparision in redis- {}".format(b_err));
+                return;
+            }
+        });
+
+    }
     debug("Received test mode flag as - " + flag);
     // If flag is true, mark it as the start time in the DB, else as end time
     debug("Marking start time of test mode in the DB");
@@ -37,22 +49,22 @@ router.post('/test_mode', function (req, res, next) {
         forever: true,
         json: { "start": flag }
     },
-    function (error, response, body) {
-        if (error || (response && response.statusCode != 200)) {
-            console.error('{}: {} {}'.format(hq_url, error, body));
-            res.status(500).send('{}: {} {}'.format(hq_url, error, body));
-            return;
-        }
-        debug(body);
-    });
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(hq_url, error, body));
+                res.status(500).send('{}: {} {}'.format(hq_url, error, body));
+                return;
+            }
+            debug(body);
+        });
     redisClient.set(helper.test_mode_flag,
-      flag,
-      function (set_err, set_reply) {
-          if (set_err) {
-              console.error('error while inserting in redis- {}'.format(set_stock_count_err));
-              return;
-          }
-      });
+        flag,
+        function (set_err, set_reply) {
+            if (set_err) {
+                console.error('error while inserting in redis- {}'.format(set_stock_count_err));
+                return;
+            }
+        });
     debug("Sending the test mode flag to the order app");
     io.emit('test_mode', flag);
     io.sockets.emit('test_mode', flag);
@@ -73,14 +85,14 @@ router.post('/test_mode_issue', function (req, res, next) {
         forever: true,
         json: { "text": issue_text }
     },
-    function (error, response, body) {
-        if (error || (response && response.statusCode != 200)) {
-            console.error('{}: {} {}'.format(hq_url, error, body));
-            res.status(500).send('{}: {} {}'.format(hq_url, error, body));
-            return;
-        }
-        res.send(body);
-    });
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(hq_url, error, body));
+                res.status(500).send('{}: {} {}'.format(hq_url, error, body));
+                return;
+            }
+            res.send(body);
+        });
 });
 
 router.post('/beverage_control', function (req, res, next) {
@@ -125,15 +137,13 @@ router.post('/mark_spoilage', function (req, res, next) {
         io.sockets.emit(helper.stock_count_node, stock_count);
         // Setting the value in redis
         redisClient.set(helper.stock_count_node,
-          JSON.stringify(stock_count),
-          function (set_stock_count_err, set_stock_count_reply)
-          {
-              if (set_stock_count_err)
-              {
-                  console.error('error while inserting in redis- {}'.format(set_stock_count_err));
-                  return;
-              }
-          });
+            JSON.stringify(stock_count),
+            function (set_stock_count_err, set_stock_count_reply) {
+                if (set_stock_count_err) {
+                    console.error('error while inserting in redis- {}'.format(set_stock_count_err));
+                    return;
+                }
+            });
         // Put the data in firebase
         var rootref = new firebase(process.env.FIREBASE_CONN);
         var stock_count_node = rootref.child('{}/{}'.format(process.env.OUTLET_ID, helper.stock_count_node));
@@ -148,10 +158,8 @@ router.post('/mark_spoilage', function (req, res, next) {
             forever: true,
             maxAttempts: 25,
             json: { "barcodes": barcodes, "misc_notes": misc_notes }
-        }, function (bill_error, bill_response, bill_body)
-        {
-            if (bill_error || (bill_response && bill_response.statusCode != 200))
-            {
+        }, function (bill_error, bill_response, bill_body) {
+            if (bill_error || (bill_response && bill_response.statusCode != 200)) {
                 console.error('{}: {} {}'.format(MARK_SPOILAGE_URL, bill_error, bill_body));
                 return;
             }
@@ -162,30 +170,24 @@ router.post('/mark_spoilage', function (req, res, next) {
 });
 
 // This will mark entire stock as spoiled
-router.post('/force_fail_entire_stock', function (req, res, next)
-{
+router.post('/force_fail_entire_stock', function (req, res, next) {
     var misc_notes = null;
     var barcodes = [];
     var fail_all = req.body.fail_all;
-    redisClient.get(helper.stock_count_node, function (err, reply)
-    {
-        if (err)
-        {
+    redisClient.get(helper.stock_count_node, function (err, reply) {
+        if (err) {
             console.error("error while retreiving from redis- {}".format(err));
             res.status(500).send("error while retreiving from redis- {}".format(err));
             return;
         }
         var stock_count = JSON.parse(reply);
         debugger;
-        for (var item_id in stock_count)
-        {
+        for (var item_id in stock_count) {
             var item_node = stock_count[item_id];
-            for (var i = 0; i < item_node["item_details"].length; i++)
-            {
+            for (var i = 0; i < item_node["item_details"].length; i++) {
                 var barcode = item_node["item_details"][i]["barcode"];
                 var count = item_node["item_details"][i]["count"];
-                for (var j = 0; j < count; ++j)
-                {
+                for (var j = 0; j < count; ++j) {
                     barcodes.push(barcode);
                 }
                 stock_count[item_id]["item_details"][i]["spoiled"] = true;
@@ -195,15 +197,13 @@ router.post('/force_fail_entire_stock', function (req, res, next)
         io.emit(helper.stock_count_node, stock_count);
         // Setting the value in redis
         redisClient.set(helper.stock_count_node,
-          JSON.stringify(stock_count),
-          function (set_stock_count_err, set_stock_count_reply)
-          {
-              if (set_stock_count_err)
-              {
-                  console.error('error while inserting in redis- {}'.format(set_stock_count_err));
-                  return;
-              }
-          });
+            JSON.stringify(stock_count),
+            function (set_stock_count_err, set_stock_count_reply) {
+                if (set_stock_count_err) {
+                    console.error('error while inserting in redis- {}'.format(set_stock_count_err));
+                    return;
+                }
+            });
         // Put the data in firebase
         var rootref = new firebase(process.env.FIREBASE_CONN);
         var stock_count_node = rootref.child('{}/{}'.format(process.env.OUTLET_ID, helper.stock_count_node));
@@ -216,10 +216,8 @@ router.post('/force_fail_entire_stock', function (req, res, next)
             method: "POST",
             forever: true,
             json: { "outlet_id": outlet_id, "barcodes": barcodes, "misc_notes": misc_notes, "fail_all": fail_all }
-        }, function (bill_error, bill_response, bill_body)
-        {
-            if (bill_error || (bill_response && bill_response.statusCode != 200))
-            {
+        }, function (bill_error, bill_response, bill_body) {
+            if (bill_error || (bill_response && bill_response.statusCode != 200)) {
                 console.error('{}: {} {}'.format(FORCE_FAILURE_URL, bill_error, bill_body));
                 return;
             }
@@ -230,13 +228,10 @@ router.post('/force_fail_entire_stock', function (req, res, next)
 });
 
 // This is to update the inventory after removing the expired items
-router.post('/signal_expiry_item_removal', function (req, res, next)
-{
+router.post('/signal_expiry_item_removal', function (req, res, next) {
     // clear out the expiry_slots queue from redis
-    redisClient.del(helper.expiry_slots_node, function (err, reply)
-    {
-        if (err)
-        {
+    redisClient.del(helper.expiry_slots_node, function (err, reply) {
+        if (err) {
             console.error(err);
             res.status(500).send("error while deleting expiry slots in redis- {}".format(err));
             return;
@@ -245,25 +240,19 @@ router.post('/signal_expiry_item_removal', function (req, res, next)
     });
     // get the barcodes of all expired items from the redis queue and send
     // them to HQ
-    redisClient.get(helper.stock_count_node, function (redis_err, redis_res)
-    {
-        if (redis_err)
-        {
+    redisClient.get(helper.stock_count_node, function (redis_err, redis_res) {
+        if (redis_err) {
             console.error(redis_err);
             res.status(500).send(redis_err);
             return;
         }
         var barcodes = [];
         var stock_count = JSON.parse(redis_res);
-        for (var item_id in stock_count)
-        {
+        for (var item_id in stock_count) {
             var item_node = stock_count[item_id];
-            for (var i = 0; i < item_node["item_details"].length; i++)
-            {
-                if (item_node["item_details"][i]["expired"])
-                {
-                    for (var j = 0; j < item_node["item_details"][i]["count"]; j++)
-                    {
+            for (var i = 0; i < item_node["item_details"].length; i++) {
+                if (item_node["item_details"][i]["expired"]) {
+                    for (var j = 0; j < item_node["item_details"][i]["count"]; j++) {
                         barcodes.push(item_node["item_details"][i]["barcode"]);
                     }
                 }
@@ -275,10 +264,8 @@ router.post('/signal_expiry_item_removal', function (req, res, next)
             url: REMOVE_EXPIRED_URL,
             method: "POST",
             json: { "barcodes": barcodes }
-        }, function (expire_error, expire_response, expire_body)
-        {
-            if (expire_error || (expire_response && expire_response.statusCode != 200))
-            {
+        }, function (expire_error, expire_response, expire_body) {
+            if (expire_error || (expire_response && expire_response.statusCode != 200)) {
                 console.error('{}: {} {}'.format(hq_url, expire_error, expire_body));
                 return;
             }
@@ -288,13 +275,10 @@ router.post('/signal_expiry_item_removal', function (req, res, next)
     });
 });
 
-router.post('/signal_unscanned_item_removal', function (req, res, next)
-{
+router.post('/signal_unscanned_item_removal', function (req, res, next) {
     // clear out the expiry_slots queue from redis
-    redisClient.del(helper.unscanned_slots_node, function (err, reply)
-    {
-        if (err)
-        {
+    redisClient.del(helper.unscanned_slots_node, function (err, reply) {
+        if (err) {
             console.error(err);
             res.status(500).send("error while retreiving from redis- {}".format(err));
             return;
@@ -309,10 +293,8 @@ router.post('/signal_unscanned_item_removal', function (req, res, next)
         method: "POST",
         forever: true,
         json: { "item_codes": item_codes }
-    }, function (error, response, body)
-    {
-        if (error || (response && response.statusCode != 200))
-        {
+    }, function (error, response, body) {
+        if (error || (response && response.statusCode != 200)) {
             console.error('{}: {} {}'.format(hq_url, error, body));
             return;
         }
@@ -322,33 +304,27 @@ router.post('/signal_unscanned_item_removal', function (req, res, next)
 });
 
 // This will return the no. of unscanned slots for the outlet dash
-router.get('/unscanned_slots', function (req, res, next)
-{
+router.get('/unscanned_slots', function (req, res, next) {
     // Get the unscanned slots and last load info first
     redisClient.get(helper.unscanned_slots_node,
-      function (err, reply)
-      {
-          if (err)
-          {
-              console.error(err);
-              res.status(500).send(err);
-              return;
-          }
-          var unscanned_slots = JSON.parse(reply);
-          res.send({ "unscanned_slots": unscanned_slots });
-      });
+        function (err, reply) {
+            if (err) {
+                console.error(err);
+                res.status(500).send(err);
+                return;
+            }
+            var unscanned_slots = JSON.parse(reply);
+            res.send({ "unscanned_slots": unscanned_slots });
+        });
 });
 
-router.post('/update_unscanned_items', function (req, res, next)
-{
+router.post('/update_unscanned_items', function (req, res, next) {
     var hq_url = process.env.HQ_URL;
     var outlet_id = process.env.OUTLET_ID;
 
     // First removing the unscanned items slot in redis -
-    redisClient.del(helper.unscanned_slots_node, function (err, reply)
-    {
-        if (err)
-        {
+    redisClient.del(helper.unscanned_slots_node, function (err, reply) {
+        if (err) {
             console.error(err);
             res.status(500).send(err);
             return;
@@ -358,25 +334,20 @@ router.post('/update_unscanned_items', function (req, res, next)
     });
 });
 
-router.get('/update_outstanding_po', function (req, res, next)
-{
+router.get('/update_outstanding_po', function (req, res, next) {
     check_incoming_po();
     res.send('success');
 });
 
-router.get('/get_loading_issue_items', function (req, res, next)
-{
-    redisClient.get(helper.loading_issue_items_node, function (err, reply)
-    {
-        if (err)
-        {
+router.get('/get_loading_issue_items', function (req, res, next) {
+    redisClient.get(helper.loading_issue_items_node, function (err, reply) {
+        if (err) {
             console.error("error while retrieving from redis- {}".format(err));
             res.status(500).send("error while retrieving from redis- {}".format(err));
             return;
         }
         var parsed_response = JSON.parse(reply);
-        if (!parsed_response)
-        {
+        if (!parsed_response) {
             res.send({});
             return;
         }
@@ -387,8 +358,7 @@ router.get('/get_loading_issue_items', function (req, res, next)
     });
 });
 
-router.post('/store_loading_issue_items', function (req, res, next)
-{
+router.post('/store_loading_issue_items', function (req, res, next) {
     // this will contact the HQ and update the final status of the latest po
     // and batch and mark the barcodes as 'loading_issue'
     var item_id_info = req.body.item_id_info;
@@ -398,10 +368,8 @@ router.post('/store_loading_issue_items', function (req, res, next)
         url: STORE_LOADING_ISSUE_ITEMS_URL,
         method: "POST",
         json: { "item_id_info": item_id_info }
-    }, function (error, response, body)
-    {
-        if (error || (response && response.statusCode != 200))
-        {
+    }, function (error, response, body) {
+        if (error || (response && response.statusCode != 200)) {
             console.error('{}: {} {}'.format(hq_url, error, body));
             res.status(500).send('{}: {} {}'.format(hq_url, error, body));
             return;
@@ -411,11 +379,9 @@ router.post('/store_loading_issue_items', function (req, res, next)
 });
 
 // This will signal the HQ that day has started and open the main page
-router.post('/start_of_day_signal', function (req, res, next)
-{
+router.post('/start_of_day_signal', function (req, res, next) {
     var supplies = req.body.supplies;
-    if (!supplies)
-    {
+    if (!supplies) {
         res.status(400).send('Please fill the supplies field');
         return;
     }
@@ -427,10 +393,8 @@ router.post('/start_of_day_signal', function (req, res, next)
         method: "POST",
         forever: true,
         json: { "supplies": supplies }
-    }, function (error, response, body)
-    {
-        if (error || (response && response.statusCode != 200))
-        {
+    }, function (error, response, body) {
+        if (error || (response && response.statusCode != 200)) {
             console.error('{}: {} {}'.format(hq_url, error, body));
             return;
         }
@@ -438,51 +402,70 @@ router.post('/start_of_day_signal', function (req, res, next)
     });
 
     // Deleting the zero sales node
-    redisClient.del(helper.zero_sales_count_node, function (del_err, del_reply)
-    {
-        if (del_err)
-        {
+    redisClient.del(helper.zero_sales_count_node, function (del_err, del_reply) {
+        if (del_err) {
             console.error("error while deleting zero sales in redis- {}".format(b_err));
             return;
         }
         debug("Deleted the zero sales count node");
     });
 
-   // deleting the barcode_comparision node
-    redisClient.del(helper.barcode_comparision, function (del_err, del_reply)
-    {
-        if (del_err)
-        {
-            console.error("error while deleting barcode_comparision in redis- {}".format(b_err));
+    redisClient.get(helper.outlet_config_node, function (err, reply) {
+        if (err) {
+            debug('error while retreiving from redis- {}'.format(err), null);
             return;
         }
+        var outlet_config = JSON.parse(reply);
+        var city = outlet_config.city;
+        var outlet_id = pad(outlet_config.id, 3);
+        var test_barcode = city + outlet_id + 'TST';
+        console.log('***********************************************test_barcode' + test_barcode);
+        redisClient.get(helper.barcode_comparision, function (err, reply) {
+            if (err) {
+                debug('error while retreiving from redis- {}'.format(err));
+                return;
+            }
+            var dummy_array = [];
+            var current_count = 1;
+            for (var itemId = 9001; itemId <= 9003; itemId++) {
+                var end_count = current_count + 29;
+                for (var i = current_count; i <= end_count; i++) {
+                    var test_data_matrix = 'TST' + pad(i, 6);
+                    dummy_array.push({ data_matrix_code: test_data_matrix, barcode: test_barcode + itemId + '121020251700' });
+                    current_count++;
+                }
+            }
+
+            redisClient.set(helper.barcode_comparision,
+                JSON.stringify(dummy_array),
+                function (err, rply) {
+                    if (err) {
+                        console.log('*******************error while inserting in redis- {}'.format(err));
+                    }
+
+                });
+        });
     });
 
     // Resetting the bill_no to 1 because its at the end of the day
-    redisClient.set(helper.bill_no_node, 1, function (b_err, b_reply)
-    {
-        if (b_err)
-        {
+    redisClient.set(helper.bill_no_node, 1, function (b_err, b_reply) {
+        if (b_err) {
             console.error("error while setting bill_no in redis- {}".format(b_err));
             return;
         }
         debug("Set the bill no to 1");
     });
 
-    redisClient.set(helper.dispense_id_node, 1, function (d_err, d_reply)
-    {
-        if (d_err)
-        {
+    redisClient.set(helper.dispense_id_node, 1, function (d_err, d_reply) {
+        if (d_err) {
             callback("error while retreiving from redis- {}".format(d_err), null);
             return;
         }
         debug("Set the dispense_id to 1");
     });
 
-    redisClient.set(helper.start_of_day_flag, false, function (sod_err, sod_reply)
-    {
-        if (sod_err)
-        {
+    redisClient.set(helper.start_of_day_flag, false, function (sod_err, sod_reply) {
+        if (sod_err) {
             console.error("error while setting sod in redis- {}".format(sod_err));
             return;
         }
@@ -490,36 +473,37 @@ router.post('/start_of_day_signal', function (req, res, next)
     });
 });
 
+function pad(n, length) {
+    var len = length - ('' + n).length;
+    return (len > 0 ? new Array(++len).join('0') : '') + n
+}
+
 //The post method call HQ to activate mobile pending orders
-router.post('/mobile_pending_orders', function (req, res, next)
-{
+router.post('/mobile_pending_orders', function (req, res, next) {
     debug("*******************************mobile_pending_orders" + JSON.stringify(req.body));
     var hq_url = process.env.HQ_URL;
     var MOBILE_PENDING_URL = '/outlet_mobile/activate_mobile_order/';
     var outletid = req.body.outletid;
     var mobileno = req.body.mobileno;
     var referenceno = req.body.referenceno;
-    
+
     requestretry({
         url: hq_url + MOBILE_PENDING_URL,
         method: "POST",
         forever: true,
         json: { "referenceno": referenceno, "mobileno": mobileno, "outletid": outletid }
     },
-    function (error, response, body)
-    {
-        if (error || (response && response.statusCode != 200))
-        {
-            console.error('{}: {} {}'.format(hq_url, error, body));
-            res.status(500).send('{}: {} {}'.format(hq_url, error, body));
-            return;
-        }
-        res.send(body);
-    });
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(hq_url, error, body));
+                res.status(500).send('{}: {} {}'.format(hq_url, error, body));
+                return;
+            }
+            res.send(body);
+        });
 });
 
-function outlet_register(phases)
-{
+function outlet_register(phases) {
     var phase = phases;
     var hq_url = process.env.HQ_URL;
     var OUTLET_REGISTER_URL = hq_url + '/outlet_mobile/outlet_register_status';
@@ -527,10 +511,8 @@ function outlet_register(phases)
         url: OUTLET_REGISTER_URL,
         method: "POST",
         json: { "phase": phase, "outlet_id": process.env.OUTLET_ID }
-    }, function (error, response, body)
-    {
-        if (error || (response && response.statusCode != 200))
-        {
+    }, function (error, response, body) {
+        if (error || (response && response.statusCode != 200)) {
             console.error('{}: {} {}'.format(hq_url, error, body));
             return;
         }
@@ -540,11 +522,9 @@ function outlet_register(phases)
 
 
 // This will signal the HQ that day has ended and return with a locked page
-router.post('/end_of_day_signal', function (req, res, next)
-{
+router.post('/end_of_day_signal', function (req, res, next) {
     var supplies = req.body.supplies;
-    if (!supplies)
-    {
+    if (!supplies) {
         res.status(400).send('Please fill the supplies field');
         return;
     }
@@ -555,10 +535,8 @@ router.post('/end_of_day_signal', function (req, res, next)
         url: SUPPLIES_STATUS_URL,
         method: "POST",
         json: { "supplies": supplies }
-    }, function (error, response, body)
-    {
-        if (error || (response && response.statusCode != 200))
-        {
+    }, function (error, response, body) {
+        if (error || (response && response.statusCode != 200)) {
             console.error('{}: {} {}'.format(hq_url, error, body));
             return;
         }
@@ -566,36 +544,29 @@ router.post('/end_of_day_signal', function (req, res, next)
     });
 
     // Deleting the zero sales node
-    redisClient.del(helper.zero_sales_count_node, function (del_err, del_reply)
-    {
-        if (del_err)
-        {
+    redisClient.del(helper.zero_sales_count_node, function (del_err, del_reply) {
+        if (del_err) {
             console.error("error while deleting zero sales in redis- {}".format(b_err));
             return;
         }
     });
 
-   // deleting the barcode_comparision node
-    redisClient.del(helper.barcode_comparision, function (del_err, del_reply)
-    {
-        if (del_err)
-        {
+    // deleting the barcode_comparision node
+    redisClient.del(helper.barcode_comparision, function (del_err, del_reply) {
+        if (del_err) {
             console.error("error while deleting barcode_comparision in redis- {}".format(b_err));
             return;
         }
     });
 
     // Resetting the bill_no to 1 because its at the end of the day
-    redisClient.set(helper.bill_no_node, 1, function (b_err, b_reply)
-    {
-        if (b_err)
-        {
+    redisClient.set(helper.bill_no_node, 1, function (b_err, b_reply) {
+        if (b_err) {
             console.error("error while setting bill_no in redis- {}".format(b_err));
             return;
         }
 
-        redisClient.get(helper.dispense_id_node, function (dis_err, dis_reply)
-        {
+        redisClient.get(helper.dispense_id_node, function (dis_err, dis_reply) {
             // Store the recovery details in the HQ
             var UPDATE_RECOVERY_DETAILS_URL = hq_url + '/outlet/update_recovery_details/' + process.env.OUTLET_ID;
             requestretry({
@@ -605,10 +576,8 @@ router.post('/end_of_day_signal', function (req, res, next)
                     "bill_no": 1,
                     "dispense_id": JSON.parse(dis_reply)
                 }
-            }, function (error, response, body)
-            {
-                if (error || (response && response.statusCode != 200))
-                {
+            }, function (error, response, body) {
+                if (error || (response && response.statusCode != 200)) {
                     console.error('{}: {} {}'.format(hq_url, error, body));
                     return;
                 }
@@ -617,10 +586,8 @@ router.post('/end_of_day_signal', function (req, res, next)
         });
 
         // Setting the start of day flag to true
-        redisClient.set(helper.start_of_day_flag, true, function (sod_err, sod_reply)
-        {
-            if (sod_err)
-            {
+        redisClient.set(helper.start_of_day_flag, true, function (sod_err, sod_reply) {
+            if (sod_err) {
                 console.error("error while setting sod in redis- {}".format(sod_err));
                 res.status(500).send(sod_err);
                 return;
@@ -630,25 +597,19 @@ router.post('/end_of_day_signal', function (req, res, next)
     });
 });
 
-router.post('/expire_all_items', function (req, res, next)
-{
+router.post('/expire_all_items', function (req, res, next) {
     debug("Expiring all items in stock");
-    redisClient.get(helper.stock_count_node, function (redis_err, redis_res)
-    {
-        if (redis_err)
-        {
+    redisClient.get(helper.stock_count_node, function (redis_err, redis_res) {
+        if (redis_err) {
             console.error(redis_err);
             return;
         }
         var parsed_response = JSON.parse(redis_res);
-        for (var item_id in parsed_response)
-        {
+        for (var item_id in parsed_response) {
             var item_details = parsed_response[item_id]["item_details"];
-            for (var i = 0; i < item_details.length; i++)
-            {
+            for (var i = 0; i < item_details.length; i++) {
                 // If the item is already expired, no need to do anything
-                if (item_details[i]["expired"])
-                {
+                if (item_details[i]["expired"]) {
                     continue;
                 }
                 item_details[i]["expired"] = true;
@@ -657,43 +618,34 @@ router.post('/expire_all_items', function (req, res, next)
                 io.emit('expiry_slots', slots);
                 // Adding the list of expired slots to redis
                 redisClient.rpush(helper.expiry_slots_node, JSON.stringify(slots),
-                  function (lp_err, lp_reply)
-                  {
-                      if (lp_err)
-                      {
-                          console.error(err);
-                          return;
-                      }
-                  });
+                    function (lp_err, lp_reply) {
+                        if (lp_err) {
+                            console.error(err);
+                            return;
+                        }
+                    });
             }
         }
 
         // push to redis
         redisClient.set(helper.stock_count_node,
-          JSON.stringify(parsed_response),
-          function (set_stock_count_err, set_stock_count_reply)
-          {
-              if (set_stock_count_err)
-              {
-                  console.error('error while inserting in redis- {}'.format(set_stock_count_err));
-              }
-          });
+            JSON.stringify(parsed_response),
+            function (set_stock_count_err, set_stock_count_reply) {
+                if (set_stock_count_err) {
+                    console.error('error while inserting in redis- {}'.format(set_stock_count_err));
+                }
+            });
         // get the lock counts
         var item_id_list = [];
-        for (var item_id in parsed_response)
-        {
+        for (var item_id in parsed_response) {
             item_id_list.push(item_id + '_locked_count');
         }
 
-        redisClient.mget(item_id_list, function (l_err, l_reply)
-        {
-            for (var item_id in parsed_response)
-            {
-                if (l_reply[item_id_list.indexOf(item_id + '_locked_count')])
-                {
+        redisClient.mget(item_id_list, function (l_err, l_reply) {
+            for (var item_id in parsed_response) {
+                if (l_reply[item_id_list.indexOf(item_id + '_locked_count')]) {
                     parsed_response[item_id]["locked_count"] = parseInt(l_reply[item_id_list.indexOf(item_id + '_locked_count')]);
-                } else
-                {
+                } else {
                     parsed_response[item_id]["locked_count"] = 0;
                 }
             }
@@ -710,8 +662,7 @@ router.post('/expire_all_items', function (req, res, next)
     res.send("success");
 });
 
-router.post('/store_last_load_info', function (req, res, next)
-{
+router.post('/store_last_load_info', function (req, res, next) {
     var po_id = req.body.po_id;
     var batch_id = req.body.batch_id;
     var rest_id = req.body.rest_id;
@@ -723,10 +674,8 @@ router.post('/store_last_load_info', function (req, res, next)
         url: UPDATE_RECEIVED_TIME_URL,
         method: "POST",
         json: { "po_id": po_id, "batch_id": batch_id, "rest_id": rest_id }
-    }, function (error, response, body)
-    {
-        if (error || (response && response.statusCode != 200))
-        {
+    }, function (error, response, body) {
+        if (error || (response && response.statusCode != 200)) {
             console.error('{}: {} {}'.format(hq_url, error, body));
             return;
         }
@@ -734,24 +683,19 @@ router.post('/store_last_load_info', function (req, res, next)
     });
 
     // update redis with the last load info
-    redisClient.get(helper.last_load_tmp_node, function (err, reply)
-    {
-        if (err)
-        {
+    redisClient.get(helper.last_load_tmp_node, function (err, reply) {
+        if (err) {
             console.error(err);
             res.status(500).send("error while last load info from redis- {}".format(err));
             return;
         }
         var parsed_response = JSON.parse(reply);
-        if (parsed_response === null)
-        {
+        if (parsed_response === null) {
             parsed_response = {};
         }
         parsed_response[rest_id] = [{ "po_id": po_id, "batch_id": batch_id }];
-        redisClient.set(helper.last_load_tmp_node, JSON.stringify(parsed_response), function (err, reply)
-        {
-            if (err)
-            {
+        redisClient.set(helper.last_load_tmp_node, JSON.stringify(parsed_response), function (err, reply) {
+            if (err) {
                 console.error(err);
                 return res.status(500).send(err);
             }
@@ -761,22 +705,18 @@ router.post('/store_last_load_info', function (req, res, next)
     get_matrix_code(batch_id);
 });
 
-router.post('/mark_po_received', function (req, res, next)
-{
+router.post('/mark_po_received', function (req, res, next) {
     var allItems = req.body;
     var hq_url = process.env.HQ_URL;
     var UPDATE_RECEIVED_TIME_URL = hq_url + '/outlet/update_received_time/' + process.env.OUTLET_ID;
 
-    allItems.map(function (item)
-    {
+    allItems.map(function (item) {
         requestretry({
             url: UPDATE_RECEIVED_TIME_URL,
             method: "POST",
             json: { "po_id": item.po_id, "batch_id": item.batch_id, "rest_id": item.rest_id }
-        }, function (error, response, body)
-        {
-            if (error || (response && response.statusCode != 200))
-            {
+        }, function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
                 console.error('{}: {} {}'.format(hq_url, error, body));
                 return;
             }
@@ -786,15 +726,13 @@ router.post('/mark_po_received', function (req, res, next)
 
     // deleting the last load info node
     redisClient.del(helper.last_load_info_node,
-                function (set_err, set_reply)
-                {
-                    if (set_err)
-                    {
-                        return debug(set_err);
-                    }
-                    debug("Deleted the last load info node");
-                    res.send('success');
-                });
+        function (set_err, set_reply) {
+            if (set_err) {
+                return debug(set_err);
+            }
+            debug("Deleted the last load info node");
+            res.send('success');
+        });
 });
 
 // This call contacts the HQ and returns the list of food_item issues
@@ -804,93 +742,80 @@ router.get('/food_item_issues', function (req, res, next) {
     var GET_FOOD_ITEM_ISSUES_URL = '/outlet/food_item_issues/';
     var outlet_id = process.env.OUTLET_ID;
     request(hq_url + GET_FOOD_ITEM_ISSUES_URL + outlet_id + '?time=' + time,
-      { forever: true },
-      function (error, response, body) {
-          if (error || (response && response.statusCode != 200)) {
-              console.error('{}: {} {}'.format(hq_url, error, body));
-              res.status(500).send('{}: {} {}'.format(hq_url, error, body));
-              return;
-          }
-          res.send(JSON.parse(body));
-      });
+        { forever: true },
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(hq_url, error, body));
+                res.status(500).send('{}: {} {}'.format(hq_url, error, body));
+                return;
+            }
+            res.send(JSON.parse(body));
+        });
 });
 
 // This call contacts the HQ and returns the list of non_food_item issues
-router.get('/non_food_item_issues', function (req, res, next)
-{
+router.get('/non_food_item_issues', function (req, res, next) {
     var hq_url = process.env.HQ_URL;
     var time = req.query.time;
     var GET_NONFOOD_ITEM_ISSUES_URL = '/outlet/non_food_item_issues/';
     var outlet_id = process.env.OUTLET_ID;
     request(hq_url + GET_NONFOOD_ITEM_ISSUES_URL + outlet_id + '?time=' + time,
-      { forever: true },
-      function (error, response, body)
-      {
-          if (error || (response && response.statusCode != 200))
-          {
-              console.error('{}: {} {}'.format(hq_url, error, body));
-              res.status(500).send('{}: {} {}'.format(hq_url, error, body));
-              return;
-          }
-          res.send(JSON.parse(body));
-      });
+        { forever: true },
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(hq_url, error, body));
+                res.status(500).send('{}: {} {}'.format(hq_url, error, body));
+                return;
+            }
+            res.send(JSON.parse(body));
+        });
 });
 
-router.get('/food_item_list', function (req, res, next)
-{
+router.get('/food_item_list', function (req, res, next) {
     async.parallel({
-        food_item_list: function (callback)
-        {
+        food_item_list: function (callback) {
             // Getting the food item list from HQ
             var hq_url = process.env.HQ_URL;
             var GET_FOOD_ITEM_LIST_URL = '/outlet/food_item_list/';
             var outlet_id = process.env.OUTLET_ID;
             request(hq_url + GET_FOOD_ITEM_LIST_URL + outlet_id,
-              { forever: true },
-              function (error, response, body)
-              {
-                  if (error || (response && response.statusCode != 200))
-                  {
-                      callback('{}: {} {}'.format(hq_url, error, body), null);
-                      return;
-                  }
-                  callback(null, JSON.parse(body));
-              });
+                { forever: true },
+                function (error, response, body) {
+                    if (error || (response && response.statusCode != 200)) {
+                        callback('{}: {} {}'.format(hq_url, error, body), null);
+                        return;
+                    }
+                    callback(null, JSON.parse(body));
+                });
         },
-        non_food_types: function (callback)
-        {
+        non_food_types: function (callback) {
             //non_food_types
             var hq_url = process.env.HQ_URL;
             var GET_NON_FOOD_TYPES_URL = '/outlet/non_food_types';
             request(hq_url + GET_NON_FOOD_TYPES_URL,
-              { forever: true },
-              function (error, response, body)
-              {
-                  if (error || (response && response.statusCode != 200))
-                  {
-                      callback('{}: {} {}'.format(hq_url, error, body), null);
-                      return;
-                  }
-                  callback(null, body);
-              });
+                { forever: true },
+                function (error, response, body) {
+                    if (error || (response && response.statusCode != 200)) {
+                        callback('{}: {} {}'.format(hq_url, error, body), null);
+                        return;
+                    }
+                    callback(null, body);
+                });
         }
     },
-    function (err, results)
-    {
-        if (err)
-        {
-            console.error(err);
-            res.status(500).send(err);
-            return;
-        }
-        var food_item_list = results.food_item_list;
-        var non_food_types = results.non_food_types;
-        res.send({ "food_item_list": food_item_list, "non_food_types": non_food_types });
-    });
+        function (err, results) {
+            if (err) {
+                console.error(err);
+                res.status(500).send(err);
+                return;
+            }
+            var food_item_list = results.food_item_list;
+            var non_food_types = results.non_food_types;
+            res.send({ "food_item_list": food_item_list, "non_food_types": non_food_types });
+        });
 });
 
-router.post('/update_item_issues', function (req, res, next)
-{
+router.post('/update_item_issues', function (req, res, next) {
     var hq_url = process.env.HQ_URL;
     var UPDATE_ITEM_ISSUES_URL = '/outlet/update_item_issues/';
     var outlet_id = process.env.OUTLET_ID;
@@ -902,149 +827,122 @@ router.post('/update_item_issues', function (req, res, next)
         forever: true,
         json: { "barcode_details": barcode_details, "non_food_issue": non_food_issue }
     },
-    function (error, response, body)
-    {
-        if (error || (response && response.statusCode != 200))
-        {
-            console.error('{}: {} {}'.format(hq_url, error, body));
-            res.status(500).send('{}: {} {}'.format(hq_url, error, body));
-            return;
-        }
-        res.send(body);
-    });
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(hq_url, error, body));
+                res.status(500).send('{}: {} {}'.format(hq_url, error, body));
+                return;
+            }
+            res.send(body);
+        });
 });
 
-router.get('/get_sales_info_cashcard', function (req, res, next)
-{
+router.get('/get_sales_info_cashcard', function (req, res, next) {
     var hq_url = process.env.HQ_URL;
     var AMOUNT_SOLD_CASHCARD_URL = '/outlet/getcashcard_sales_daymonth/';
     var outlet_id = process.env.OUTLET_ID;
     console.log("get_sales_info_cashcard :=", hq_url + AMOUNT_SOLD_CASHCARD_URL + outlet_id);
     request(hq_url + AMOUNT_SOLD_CASHCARD_URL + outlet_id,
-      { forever: true },
-      function (error, response, body)
-      {
-          if (error || (response && response.statusCode != 200))
-          {
-              console.error('{}: {} {}'.format(hq_url, error, body));
-              res.status(500).send('{}: {} {}'.format(hq_url, error, body));
-              return;
-          }
-          res.send(body);
-      });
+        { forever: true },
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(hq_url, error, body));
+                res.status(500).send('{}: {} {}'.format(hq_url, error, body));
+                return;
+            }
+            res.send(body);
+        });
 });
 
 // get no. of items sold since sod for food and other items
 // get amount sold through cash since sod
 // get amount sold in petty cash since sod
 // get amount sold in food and snacks/drinks in that month
-router.get('/get_sales_info', function (req, res, next)
-{
+router.get('/get_sales_info', function (req, res, next) {
     // Doing an async parallel call to get the different infos
     async.parallel({
-        amount_sold_cash: function (callback)
-        {
+        amount_sold_cash: function (callback) {
             // This is the amount given to them at the start of the month
             var AMOUNT_SOLD_CASH_URL = '/outlet/amount_for_month/' + process.env.OUTLET_ID;
             console.log("amount_sold_cash url:-", process.env.HQ_URL + AMOUNT_SOLD_CASH_URL);
             request(process.env.HQ_URL + AMOUNT_SOLD_CASH_URL,
-              { forever: true },
-              function (error, response, body)
-              {
-                  if (error || (response && response.statusCode != 200))
-                  {
-                      callback('{}: {} {}'.format(process.env.HQ_URL, error, body), null);
-                      return;
-                  }
-                  if (!body)
-                  {
-                      callback(null, { "sum": 0 });
-                  } else
-                  {
-                      callback(null, JSON.parse(body));
-                  }
-              });
+                { forever: true },
+                function (error, response, body) {
+                    if (error || (response && response.statusCode != 200)) {
+                        callback('{}: {} {}'.format(process.env.HQ_URL, error, body), null);
+                        return;
+                    }
+                    if (!body) {
+                        callback(null, { "sum": 0 });
+                    } else {
+                        callback(null, JSON.parse(body));
+                    }
+                });
         },
-        amount_sold_cashcard: function (callback)
-        {
+        amount_sold_cashcard: function (callback) {
             // This is the amount given to them at the start of the month
             var AMOUNT_SOLD_CASHCARD_URL = '/outlet/getcashcard_sales_daymonth/' + process.env.OUTLET_ID;
             console.log("AMOUNT_SOLD_CASHCARD_URL :-", AMOUNT_SOLD_CASHCARD_URL);
             request(process.env.HQ_URL + AMOUNT_SOLD_CASHCARD_URL,
-              { forever: true },
-              function (error, response, body)
-              {
-                  if (error || (response && response.statusCode != 200))
-                  {
-                      callback('{}: {} {}'.format(process.env.HQ_URL, error, body), null);
-                      return;
-                  }
-                  if (!body)
-                  {
-                      callback(null, { "sum": 0 });
-                  } else
-                  {
-                      callback(null, JSON.parse(body));
-                  }
-              });
+                { forever: true },
+                function (error, response, body) {
+                    if (error || (response && response.statusCode != 200)) {
+                        callback('{}: {} {}'.format(process.env.HQ_URL, error, body), null);
+                        return;
+                    }
+                    if (!body) {
+                        callback(null, { "sum": 0 });
+                    } else {
+                        callback(null, JSON.parse(body));
+                    }
+                });
         },
-        amount_sold_pettycash: function (callback)
-        {
+        amount_sold_pettycash: function (callback) {
             // This is the amount sold in petty cash for that month
             var AMOUNT_SOLD_PETTY_CASH_URL = '/outlet/amount_sold_pettycash/' + process.env.OUTLET_ID;
             request(process.env.HQ_URL + AMOUNT_SOLD_PETTY_CASH_URL,
-              { forever: true },
-              function (error, response, body)
-              {
-                  if (error || (response && response.statusCode != 200))
-                  {
-                      callback('{}: {} {}'.format(process.env.HQ_URL, error, body), null);
-                      return;
-                  }
-                  if (!body)
-                  {
-                      callback(null, { "sum": 0 });
-                  } else
-                  {
-                      callback(null, JSON.parse(body));
-                  }
-              });
+                { forever: true },
+                function (error, response, body) {
+                    if (error || (response && response.statusCode != 200)) {
+                        callback('{}: {} {}'.format(process.env.HQ_URL, error, body), null);
+                        return;
+                    }
+                    if (!body) {
+                        callback(null, { "sum": 0 });
+                    } else {
+                        callback(null, JSON.parse(body));
+                    }
+                });
         }
     },
-    function (err, results)
-    {
-        if (err)
-        {
-            console.error(err);
-            res.status(500).send(err);
-            return;
-        }
-        res.send(results);
-    });
+        function (err, results) {
+            if (err) {
+                console.error(err);
+                res.status(500).send(err);
+                return;
+            }
+            res.send(results);
+        });
 });
 
-router.get('/get_live_pos', function (req, res, next)
-{
+router.get('/get_live_pos', function (req, res, next) {
     var hq_url = process.env.HQ_URL;
     var UPDATE_ITEM_ISSUES_URL = '/outlet/get_live_pos/';
     var outlet_id = process.env.OUTLET_ID;
     request(hq_url + UPDATE_ITEM_ISSUES_URL + outlet_id,
-      { forever: true },
-      function (error, response, body)
-      {
-          if (error || (response && response.statusCode != 200))
-          {
-              console.error('{}: {} {}'.format(hq_url, error, body));
-              res.status(500).send('{}: {} {}'.format(hq_url, error, body));
-              return;
-          }
-          res.send(body);
-      });
+        { forever: true },
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(hq_url, error, body));
+                res.status(500).send('{}: {} {}'.format(hq_url, error, body));
+                return;
+            }
+            res.send(body);
+        });
 });
 
 // Handler to keep track of the petty cash expenditure by the outlet staff
-router.post('/petty_expenditure', function (req, res, next)
-{
+router.post('/petty_expenditure', function (req, res, next) {
     var hq_url = process.env.HQ_URL;
     var PETTY_EXPENDITURE_URL = '/outlet/petty_expenditure/';
     var outlet_id = process.env.OUTLET_ID;
@@ -1054,39 +952,33 @@ router.post('/petty_expenditure', function (req, res, next)
         method: "POST",
         json: { "data": req.body.data }
     },
-    function (error, response, body)
-    {
-        if (error || (response && response.statusCode != 200))
-        {
-            console.error('{}: {} {}'.format(hq_url, error, body));
-            res.status(500).send('{}: {} {}'.format(hq_url, error, body));
-            return;
-        }
-        res.send(body);
-    });
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(hq_url, error, body));
+                res.status(500).send('{}: {} {}'.format(hq_url, error, body));
+                return;
+            }
+            res.send(body);
+        });
 });
 
 // Handler that returns the list of names to the outlet dash
-router.get('/staff_roster', function (req, res, next)
-{
+router.get('/staff_roster', function (req, res, next) {
     var STAFF_ROSTER_URL = '/outlet/staff_roster/' + process.env.OUTLET_ID;
     // requesting the HQ to get the staff list
     request(process.env.HQ_URL + STAFF_ROSTER_URL,
-      { forever: true },
-      function (error, response, body)
-      {
-          if (error || (response && response.statusCode != 200))
-          {
-              console.error('{}: {} {}'.format(process.env.HQ_URL, error, body));
-              res.status(500).send('{}: {} {}'.format(process.env.HQ_URL, error, body));
-              return;
-          }
-          res.send(JSON.parse(body));
-      });
+        { forever: true },
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(process.env.HQ_URL, error, body));
+                res.status(500).send('{}: {} {}'.format(process.env.HQ_URL, error, body));
+                return;
+            }
+            res.send(JSON.parse(body));
+        });
 });
 
-router.post('/staff_roster', function (req, res, next)
-{
+router.post('/staff_roster', function (req, res, next) {
     var STAFF_ROSTER_URL = '/outlet/staff_roster/' + process.env.OUTLET_ID;
     requestretry({
         url: process.env.HQ_URL + STAFF_ROSTER_URL,
@@ -1094,78 +986,64 @@ router.post('/staff_roster', function (req, res, next)
         forever: true,
         json: { "data": req.body.data }
     },
-    function (error, response, body)
-    {
-        if (error || (response && response.statusCode != 200))
-        {
-            console.error('{}: {} {}'.format(process.env.HQ_URL, error, body));
-            res.status(500).send('{}: {} {}'.format(process.env.HQ_URL, error, body));
-            return;
-        }
-        res.send(body);
-    });
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(process.env.HQ_URL, error, body));
+                res.status(500).send('{}: {} {}'.format(process.env.HQ_URL, error, body));
+                return;
+            }
+            res.send(body);
+        });
 });
 
 // This handler passes the stop order command to the order app
-router.post('/stop_orders', function (req, res, next)
-{
+router.post('/stop_orders', function (req, res, next) {
     redisClient.set(helper.stop_orders_flag,
-    true,
-    function (set_err, set_reply)
-    {
-        if (set_err)
-        {
-            console.error('error while inserting in redis- {}'.format(set_stock_count_err));
-            return;
-        }
-        io.emit('stop_orders', true);
-        res.send('success');
-    });
+        true,
+        function (set_err, set_reply) {
+            if (set_err) {
+                console.error('error while inserting in redis- {}'.format(set_stock_count_err));
+                return;
+            }
+            io.emit('stop_orders', true);
+            res.send('success');
+        });
 });
 
 // This handler passes the stop order command to the order app
-router.post('/resume_orders', function (req, res, next)
-{
+router.post('/resume_orders', function (req, res, next) {
     redisClient.set(helper.stop_orders_flag,
-    false,
-    function (set_err, set_reply)
-    {
-        if (set_err)
-        {
-            console.error('error while inserting in redis- {}'.format(set_stock_count_err));
-            return;
-        }
-        io.emit('stop_orders', false);
-        res.send('success');
-    });
+        false,
+        function (set_err, set_reply) {
+            if (set_err) {
+                console.error('error while inserting in redis- {}'.format(set_stock_count_err));
+                return;
+            }
+            io.emit('stop_orders', false);
+            res.send('success');
+        });
 });
 
 // Handler that returns the breakdown of the petty cash expenditure
 // after getting it from the HQ
-router.get('/petty_cash_breakdown', function (req, res, next)
-{
+router.get('/petty_cash_breakdown', function (req, res, next) {
     var PETTY_CASH_URL = '/outlet/petty_cash_breakdown/' + process.env.OUTLET_ID;
     // requesting the HQ to get the staff list
     requestretry(process.env.HQ_URL + PETTY_CASH_URL,
-      function (error, response, body)
-      {
-          if (error || (response && response.statusCode != 200))
-          {
-              console.error('{}: {} {}'.format(process.env.HQ_URL, error, body));
-              res.status(500).send('{}: {} {}'.format(process.env.HQ_URL, error, body));
-              return;
-          }
-          res.send(JSON.parse(body));
-      });
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(process.env.HQ_URL, error, body));
+                res.status(500).send('{}: {} {}'.format(process.env.HQ_URL, error, body));
+                return;
+            }
+            res.send(JSON.parse(body));
+        });
 });
 
-router.post('/expire_item_batch/:item_id', function (req, res, next)
-{
+router.post('/expire_item_batch/:item_id', function (req, res, next) {
     // get the stock from redis
-    redisClient.get(helper.stock_count_node, function (redis_err, redis_res)
-    {
-        if (redis_err)
-        {
+    redisClient.get(helper.stock_count_node, function (redis_err, redis_res) {
+        if (redis_err) {
             console.error(redis_err);
             res.status(500).send(redis_err);
             return;
@@ -1173,52 +1051,41 @@ router.post('/expire_item_batch/:item_id', function (req, res, next)
         var item_id = req.params.item_id;
         var parsed_response = JSON.parse(redis_res);
         // if stock[item_id] is present, expire all batches of it
-        if (parsed_response.hasOwnProperty(item_id))
-        {
+        if (parsed_response.hasOwnProperty(item_id)) {
             var item_details = parsed_response[item_id]["item_details"];
-            for (var i = 0; i < item_details.length; i++)
-            {
+            for (var i = 0; i < item_details.length; i++) {
                 item_details[i]["expired"] = true;
                 // Pushing the data to redis to store the list of expired slots
                 var slots = item_details[i]["slot_ids"];
                 io.emit('expiry_slots', slots);
                 // Adding the list of expired slots to redis
                 redisClient.rpush(helper.expiry_slots_node, JSON.stringify(slots),
-                  function (lp_err, lp_reply)
-                  {
-                      if (lp_err)
-                      {
-                          console.error(err);
-                          return;
-                      }
-                  });
+                    function (lp_err, lp_reply) {
+                        if (lp_err) {
+                            console.error(err);
+                            return;
+                        }
+                    });
             }
             // push to redis
             redisClient.set(helper.stock_count_node,
-              JSON.stringify(parsed_response),
-              function (set_stock_count_err, set_stock_count_reply)
-              {
-                  if (set_stock_count_err)
-                  {
-                      console.error('error while inserting in redis- {}'.format(set_stock_count_err));
-                  }
-              });
+                JSON.stringify(parsed_response),
+                function (set_stock_count_err, set_stock_count_reply) {
+                    if (set_stock_count_err) {
+                        console.error('error while inserting in redis- {}'.format(set_stock_count_err));
+                    }
+                });
             // get the lock counts
             var item_id_list = [];
-            for (var item_id in parsed_response)
-            {
+            for (var item_id in parsed_response) {
                 item_id_list.push(item_id + '_locked_count');
             }
 
-            redisClient.mget(item_id_list, function (l_err, l_reply)
-            {
-                for (var item_id in parsed_response)
-                {
-                    if (l_reply[item_id_list.indexOf(item_id + '_locked_count')])
-                    {
+            redisClient.mget(item_id_list, function (l_err, l_reply) {
+                for (var item_id in parsed_response) {
+                    if (l_reply[item_id_list.indexOf(item_id + '_locked_count')]) {
                         parsed_response[item_id]["locked_count"] = parseInt(l_reply[item_id_list.indexOf(item_id + '_locked_count')]);
-                    } else
-                    {
+                    } else {
                         parsed_response[item_id]["locked_count"] = 0;
                     }
                 }
@@ -1232,8 +1099,7 @@ router.post('/expire_item_batch/:item_id', function (req, res, next)
                 stock_count_node.set(parsed_response);
                 return res.send('success');
             });
-        } else
-        {
+        } else {
             return res.send('success');
         }
     });
@@ -1244,60 +1110,60 @@ function get_matrix_code(batch_id) {
     var GET_DATA_MATRIX_URL = '/food_vendor/get_data_matrix/' + batch_id;
     // requesting the HQ to get the staff list
     request(process.env.HQ_URL + GET_DATA_MATRIX_URL,
-      { forever: true },
-      function (error, response, body) {
-          if (error || (response && response.statusCode != 200)) {
-              console.error('{}: {} {}'.format(process.env.HQ_URL, error, body));
-              return;
-          }
-          console.log("************data received from get_data_matrix (HQ) in staff_roster method(outlet) " + body);
+        { forever: true },
+        function (error, response, body) {
+            if (error || (response && response.statusCode != 200)) {
+                console.error('{}: {} {}'.format(process.env.HQ_URL, error, body));
+                return;
+            }
+            console.log("************data received from get_data_matrix (HQ) in staff_roster method(outlet) " + body);
 
-          redisClient.get(helper.barcode_comparision, function (err, reply) {
-              if (err) {
-                  debug('error while retreiving from redis- {}'.format(err));
-                  return;
-              }
+            redisClient.get(helper.barcode_comparision, function (err, reply) {
+                if (err) {
+                    debug('error while retreiving from redis- {}'.format(err));
+                    return;
+                }
 
-              var config = reply != null ? JSON.parse(reply) : null;
-              if (config != null) {
-                  console.log("*************************barcode_comparision length " + config.length);
-                  if (config.length > 0) {
-                      var parsed_data = JSON.parse(body);
-                      _.each(parsed_data, function (obj) {
-                          config.push(obj);
-                      });
-                      console.log("*************************inside true condition final result" + JSON.stringify(config));
-                      redisClient.set(helper.barcode_comparision, JSON.stringify(config),
-                      function (lp_err, lp_reply) {
-                          if (lp_err) {
-                              console.log("***************err while update rpush barcode_comparision" + lp_err);
-                              return;
-                          }
-                      });
-                  } else {
-                      console.log("*************************inside false condition");
-                      redisClient.set(helper.barcode_comparision,
-                          body,
-                          function (err, rply) {
-                              if (err) {
-                                  console.log('*******************error while inserting in redis- {}'.format(err));
-                              }
+                var config = reply != null ? JSON.parse(reply) : null;
+                if (config != null) {
+                    console.log("*************************barcode_comparision length " + config.length);
+                    if (config.length > 0) {
+                        var parsed_data = JSON.parse(body);
+                        _.each(parsed_data, function (obj) {
+                            config.push(obj);
+                        });
+                        console.log("*************************inside true condition final result" + JSON.stringify(config));
+                        redisClient.set(helper.barcode_comparision, JSON.stringify(config),
+                            function (lp_err, lp_reply) {
+                                if (lp_err) {
+                                    console.log("***************err while update rpush barcode_comparision" + lp_err);
+                                    return;
+                                }
+                            });
+                    } else {
+                        console.log("*************************inside false condition");
+                        redisClient.set(helper.barcode_comparision,
+                            body,
+                            function (err, rply) {
+                                if (err) {
+                                    console.log('*******************error while inserting in redis- {}'.format(err));
+                                }
 
-                          });
-                  }
-              } else {
-                  console.log("*************************inside config null condition");
-                  redisClient.set(helper.barcode_comparision,
-                      body,
-                      function (err, rply) {
-                          if (err) {
-                              console.log('*******************error while inserting in redis- {}'.format(err));
-                          }
+                            });
+                    }
+                } else {
+                    console.log("*************************inside config null condition");
+                    redisClient.set(helper.barcode_comparision,
+                        body,
+                        function (err, rply) {
+                            if (err) {
+                                console.log('*******************error while inserting in redis- {}'.format(err));
+                            }
 
-                      });
-              }
-          });
-      });
+                        });
+                }
+            });
+        });
 };
 
 

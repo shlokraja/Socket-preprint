@@ -95,6 +95,7 @@ router.post('/update_order_item_status', function (req, res, next) {
 // This call returns the dispenser queue data structure to the plcio daemon
 // The order queue is of this format - [{"dispense_id": "", "status": "", "order_stub": ""}]
 router.get('/order_queue', function (req, res, next) {
+    console.log('*************************************order_queue called')
     redisClient.lrange(helper.dispenser_queue_node, 0, -1,
         function (q_err, q_reply) {
             if (q_err) {
@@ -106,6 +107,7 @@ router.get('/order_queue', function (req, res, next) {
             for (var i = 0; i < q_reply.length; i++) {
                 queue.push(JSON.parse(q_reply[i]));
             }
+            //console.log('*************************************order_queue is '+JSON.stringify(queue))
             res.send(queue);
         });
 });
