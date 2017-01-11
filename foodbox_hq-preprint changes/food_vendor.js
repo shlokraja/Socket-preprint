@@ -48,7 +48,7 @@ router.get('/po_data/:rest_id', function(req, res, next) {
             and p.green_signal_time::date=now()::date \
             and p.restaurant_id=$1', [rest_id], function(query_err, result) {
           if(query_err) {
-            callback('error running query' + query_err, null);
+            callback('error running query po_master' + query_err, null);
             return;
           }
           // releasing the connection
@@ -62,7 +62,7 @@ router.get('/po_data/:rest_id', function(req, res, next) {
           WHERE p.id=pb.purchase_order_id and p.green_signal_time::date=now()::date \
             and p.restaurant_id=$1', [rest_id], function(query_err, result) {
           if(query_err) {
-            callback('error running query' + query_err, null);
+            callback('error running query po_batch' + query_err, null);
             return;
           }
           // releasing the connection
@@ -220,7 +220,7 @@ router.get('/supply_list/:id', function(req, res, next) {
           [restaurant_id],
           function(query_err, result) {
           if(query_err) {
-            callback('error running query' + query_err, null);
+            callback('error running query supply_list' + query_err, null);
             return;
           }
 
@@ -238,7 +238,7 @@ router.get('/supply_list/:id', function(req, res, next) {
           [restaurant_id],
           function(query_err, result) {
           if(query_err) {
-            callback('error running query' + query_err, null);
+            callback('error running query supply_list 2' + query_err, null);
             return;
           }
 
@@ -273,7 +273,7 @@ router.get('/config/:restaurant_id', function(req, res, next) {
     client.query('SELECT * FROM restaurant_config \
       WHERE restaurant_id=$1', [restaurant_id], function(query_err, result) {
       if(query_err) {
-        handleError(client, done, res, 'error running query' + query_err);
+        handleError(client, done, res, 'error running query Config' + query_err);
         return;
       }
 
@@ -327,6 +327,101 @@ function getItemId(barcode) {
 
 // Function created for offline data push
 router.post('/new_batches', function (req, res, next) {
+    try {
+        //console.log(req.body.batch);
+        var decodeBatches = new Buffer(req.body.batch, 'base64').toString("ascii");
+        // console.log(decodeBatches);
+        var batch = JSON.parse(decodeBatches);
+        // console.log("Data for new batch is- ", batch);
+
+        config.query('SELECT max(id) as batch_id \
+      FROM purchase_order_batch',
+      [],
+  function (err, result) {
+      if (err) {
+          //console.log("errr",err);
+          return handleErrorNew(err, result);
+      }
+      //console.log(batch.length);
+      for (var m = 0; m < batch.length; m++) {
+          //console.log("batch length is- ", batch.length);
+          for (var i = 0; i < batch[m].data.length; i++) {
+              //console.log("confirmedPOData.data.length is- ", batch[m].data.length);
+              (function (i) {
+                  var po_id = batch[m].data[i]["po_id"];
+                  if (po_id == '--') {
+                      return;
+                  }
+                  var packed_qty = batch[m].data[i]["packed_qty"];
+                  if (!result.rows[0]["batch_id"]) {
+                      var batch_id = 0;
+                  } else {
+                      var batch_id = result.rows[0]["batch_id"];
+                  }
+                   var opt = transformArr(batch[m].data[i]["barcodes"]);
+		   console.log("****************************opt" + JSON.stringify(opt));
+                  // Making the unique barcodes in a dict and then inserting their counts
+                  for (var key in opt) {
+                      var barcode_details = opt[key];
+                      console.log(barcode_details.data_matrix + " " + barcode_details.barcode + " " + barcode_details.data_matrix.length);
+                  config.query('INSERT into purchase_order_batch \
+                             (id,purchase_order_id,quantity,barcode,delivery_time) \
+                             VALUES($1, $2, $3, $4, now())',
+                               [batch_id + 1 + i, po_id, barcode_details.data_matrix.length, barcode_details.barcode],
+                             function (query_err2, query_res2)
+                             {
+                                 if (query_err2)
+                                 {
+                                     console.log(query_err2);
+                                     res.status(500).send(query_err2);
+                                     return;
+                                 }
+                                 if (query_res2)
+                                 {
+                                     console.log("purchase_order_batch:- " + query_res2);
+                                 }
+                             });
+                      _.each(barcode_details.data_matrix, function (q)
+                      {
+                          config.query('INSERT into po_preprinted_code \
+                             (batch_id,data_matrix_code,barcode) \
+                             VALUES($1, $2, $3)',
+                                        [batch_id + 1 + i, q, barcode_details.barcode],
+                                      function (query_err2, query_res2)
+                                      {
+                                          if (query_err2)
+                                          {
+                                              console.error(query_err2);
+                                              res.status(500).send(query_err2);
+                                              return;
+                                          }
+                                      });
+                      });
+                  }
+                  //console.log("inserted query started");
+                  config.query('INSERT into transporter_log \
+          VALUES($1, $2, $3)',
+        [po_id, batch_id + 1 + i, batch[m].signature],
+        function (query_err2, query_res2) {
+            //console.log("m value:-",m);
+            if (query_err2) {
+                //console.log("errorrrrrrrrrrrrrrrrrrrrrrrrrr-------",query_err2);
+                handleErrorNew(query_err2, query_res2)
+                return;
+            }
+        });
+              })(i);
+          }
+      }
+      // console.log("sucess");
+      res.send('success');
+  });
+    }
+    catch (e) { console.log(e); }
+});
+
+// Function created for offline data push
+router.post('/new_batches_preprint', function (req, res, next) {
     try {
         //console.log(req.body.batch);
         var decodeBatches = new Buffer(req.body.batch, 'base64').toString("ascii");
