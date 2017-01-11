@@ -3491,6 +3491,34 @@ router.post('/Check_Missing_Bills', function (req, res, next) {
     }
 });
 
+router.post('/update_PO_received_time', function (req, res, next) {
+    var po_id = req.body.po_id;
+
+    pg.connect(conString, function (err, client, done) {
+        if (err)
+        {
+            handleError(client, done, res, 'error fetching client from pool' + err);
+            return;
+        }
+
+        client.query('UPDATE purchase_order SET po_received_time = now() \
+        WHERE id=$1',
+          [po_id],
+          function (query_err, result) {
+              if (query_err)
+              {
+                  handleError(client, done, res, '/update_po_received_time/:id :: error running query' + query_err);
+                  return;
+              }
+
+              done();
+          });
+
+        res.send('success');
+    });
+
+});
+
 function UpdateOrderHistoryStatus(outlet_id, mobileno, bill_no, status) {
     console.log("UpdateOrderHistory");
     var response_message = "";
